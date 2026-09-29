@@ -2,6 +2,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 from iam_tools.audit import log_action
+from iam_tools.actions import create_user, add_to_group, disable_user, get_group_id, find_user
 
 PENDING_FILE = "logs/approvals_pending.json"
 
@@ -61,6 +62,18 @@ TOOLS = [
             "required": ["user_id"],
         },
     },
+
+        {
+        "name": "find_user",
+        "description": "Look up an existing user by their userPrincipalName (UPN) to get their id. Use this before disabling or modifying an existing user.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "upn_or_name": {"type": "string", "description": "the user's UPN, e.g. bob.jones@yourtenant.onmicrosoft.com"},
+            },
+            "required": ["upn_or_name"],
+        },
+    },
 ]
 
 import yaml
@@ -95,18 +108,13 @@ def assign_role_access(user_id, role, dry_run=True):
 
 def run_tool(name, args, dry_run=True):
     if name == "create_user":
-        result = create_user(**args, dry_run=dry_run)
-        log_action("create_user", args.get("upn", "?"),
-                   "dry_run" if dry_run else "created", mode="auto")
-        return result
+        return create_user(**args, dry_run=dry_run)
     if name == "assign_role_access":
         return assign_role_access(**args, dry_run=dry_run)
     if name == "disable_user":
-        result = disable_user(**args, dry_run=dry_run)
-        log_action("disable_user", args.get("user_id", "?"),
-                   "dry_run" if dry_run else "disabled", mode="auto")
-        return result
-    log_action("unknown_tool", name, "refused")
+        return disable_user(**args, dry_run=dry_run)
+    if name == "find_user":
+        return find_user(**args, dry_run=dry_run)
     return {"error": f"unknown tool {name}"}
 
 import os
@@ -118,6 +126,7 @@ SYSTEM = """You are an IAM provisioning assistant for Entra ID.
 Map each request to actions using ONLY the tools provided.
 Never invent group names. To grant access, call assign_role_access with a role name.
 For a joiner, create the user first, then assign role access using the returned user id.
+For a mover or leaver, call find_user first to get the user id, then act.
 For a leaver, disable the user. Explain your plan before acting."""
 
 def handle_ticket(ticket_text, dry_run=True):
@@ -147,8 +156,9 @@ def handle_ticket(ticket_text, dry_run=True):
             print(response.content[0].text)
             return
 
+import csv, sys
 if __name__ == "__main__":
-    handle_ticket(
-    "Do the onboarding for Daniel Radcliffe as a financial_analyst, daniel.radcliffe@jeffreylpfyahoo.onmicrosoft.com",
-    dry_run=False
-    )
+    live = "--live" in sys.argv
+    with open("tickets.csv") as f:
+        for row in csv.DictReader(f):
+            handle_ticket(row["request"], dry_run=not live)

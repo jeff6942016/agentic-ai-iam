@@ -24,6 +24,8 @@ def graph(method, path, **kwargs):
         headers={"Authorization": f"Bearer {get_token()}"},
         **kwargs,
     )
+    if not resp.ok:
+        print(f"Graph {resp.status_code} error: {resp.text}")
     resp.raise_for_status()
     return resp.json() if resp.text else {}
 
