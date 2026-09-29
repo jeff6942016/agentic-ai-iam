@@ -1,3 +1,31 @@
+import json
+import uuid
+from datetime import datetime, timezone
+from iam_tools.audit import log_action
+
+PENDING_FILE = "logs/approvals_pending.json"
+
+def _load_pending():
+    if not os.path.exists(PENDING_FILE):
+        return []
+    with open(PENDING_FILE) as f:
+        return json.load(f)
+
+def _add_pending(user_id, group, role):
+    os.makedirs("logs", exist_ok=True)
+    items = _load_pending()
+    items.append({
+        "id": str(uuid.uuid4())[:8],
+        "user_id": user_id,
+        "group": group,
+        "role": role,
+        "requested_by": "jml-agent",
+        "requested_at": datetime.now(timezone.utc).isoformat(),
+        "status": "pending",
+    })
+    with open(PENDING_FILE, "w") as f:
+        json.dump(items, f, indent=2)
+
 TOOLS = [
     {
         "name": "create_user",
@@ -45,25 +73,40 @@ def load_policy():
 def assign_role_access(user_id, role, dry_run=True):
     policy = load_policy()
     if role not in policy["roles"]:
+        log_action("assign_role_access", role, "refused_unknown_role",
+                   user_id=user_id)
         return {"error": f"unknown role {role}, refused"}
     groups = policy["roles"][role]["groups"]
     privileged = set(policy.get("privileged_groups", []))
     results = []
     for name in groups:
         if name in privileged:
+            _add_pending(user_id, name, role)
+            log_action("hold_privileged", name, "held_for_approval",
+                       user_id=user_id, role=role)
             results.append({"group": name, "status": "HELD_FOR_APPROVAL"})
         else:
             add_to_group(user_id, get_group_id(name), dry_run=dry_run)
+            log_action("add_to_group", name,
+                       "dry_run" if dry_run else "assigned",
+                       user_id=user_id, role=role, mode="auto")
             results.append({"group": name, "status": "assigned"})
     return results
 
 def run_tool(name, args, dry_run=True):
     if name == "create_user":
-        return create_user(**args, dry_run=dry_run)
+        result = create_user(**args, dry_run=dry_run)
+        log_action("create_user", args.get("upn", "?"),
+                   "dry_run" if dry_run else "created", mode="auto")
+        return result
     if name == "assign_role_access":
         return assign_role_access(**args, dry_run=dry_run)
     if name == "disable_user":
-        return disable_user(**args, dry_run=dry_run)
+        result = disable_user(**args, dry_run=dry_run)
+        log_action("disable_user", args.get("user_id", "?"),
+                   "dry_run" if dry_run else "disabled", mode="auto")
+        return result
+    log_action("unknown_tool", name, "refused")
     return {"error": f"unknown tool {name}"}
 
 import os
@@ -106,6 +149,6 @@ def handle_ticket(ticket_text, dry_run=True):
 
 if __name__ == "__main__":
     handle_ticket(
-    "Onboard Tom Cruise as a financial analyst, tom.cruise@jeffreylpfyahoo.onmicrosoft.com",
+    "Do the onboarding for Daniel Radcliffe as a financial_analyst, daniel.radcliffe@jeffreylpfyahoo.onmicrosoft.com",
     dry_run=False
     )
