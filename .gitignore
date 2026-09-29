@@ -1,4 +1,4 @@
 .env
 .venv
 logs/
-__pscache__/
+__pycache__/
