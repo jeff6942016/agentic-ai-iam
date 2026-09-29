@@ -1,0 +1,6 @@
+roles:
+  financial_analyst:
+    groups: [APP-Finance-ReadOnly, SHARED-AllStaff]
+  finance_admin:
+    groups: [APP-Finance-ReadOnly, PRIV-Finance-Admin, SHARED-AllStaff]
+privileged_groups: [PRIV-Finance-Admin]
