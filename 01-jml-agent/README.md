@@ -211,7 +211,7 @@ The local log is then corroborated against the source of truth: the Entra audit 
 </details>
 
 <details>
-<summary><strong>Phase 11: Red-teaming the agent (the differentiator)</strong></summary>
+<summary><strong>Phase 11: Red-teaming the agent</strong></summary>
 
 The agent was attacked to prove the controls hold under hostile input rather than only on the happy path. Results were recorded in `redteam/findings.md`.
 
