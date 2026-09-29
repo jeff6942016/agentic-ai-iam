@@ -33,16 +33,17 @@ flowchart TD
         reason["Interpret intent,<br/>choose tools"] --> policy["Policy lookup<br/>roles.yaml"]
         policy --> guard{"Privileged<br/>group?"}
     end
-    guard -->|"standard access"| graph["Microsoft Graph<br/>least-privilege app identity"]
-    guard -->|"privileged access"| hold["Held for approval<br/>approvals_pending.json"]
-    hold -->|"human sign-off via approve.py"| pim["PIM eligible<br/>JIT + MFA + justification"]
-    pim --> graph
-    graph --> audit["Structured attribution log<br/>audit.jsonl + Entra audit logs"]
+    guard -->|standard access| msgraph["Microsoft Graph<br/>least-privilege app identity"]
+    guard -->|privileged access| hold["Held for approval<br/>approvals_pending.json"]
+    hold -->|human sign-off via approve.py| pim["PIM eligible<br/>JIT + MFA + justification"]
+    pim --> msgraph
+    msgraph --> audit["Structured attribution log<br/>audit.jsonl + Entra audit logs"]
     redteam["Red team<br/>prompt injection, scope probe"] -.attacks.-> agent
     redteam -.blocked in code.-> guard
-    review["Access reviews (P2)"] -.governs.-> graph
+    review["Access reviews (P2)"] -.governs.-> msgraph
     ca["Conditional Access (P2)"] -.protects.-> approver["Human approver"]
 ```
+
 
 ## Key Concepts Demonstrated
 
