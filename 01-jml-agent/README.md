@@ -2,7 +2,6 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![Microsoft Graph](https://img.shields.io/badge/Microsoft%20Graph-API-0078D4?logo=microsoft&logoColor=white)
-![Anthropic Claude](https://img.shields.io/badge/Claude-Tool%20Use%20Agent-D97757)
 ![Focus](https://img.shields.io/badge/Focus-IAM%20%2F%20JML%20Lifecycle-5E5E5E)
 ![Security Lens](https://img.shields.io/badge/Security-Non--Human%20Identity-C0392B)
 ![Entra ID](https://img.shields.io/badge/Entra%20ID-P2-107C10)
