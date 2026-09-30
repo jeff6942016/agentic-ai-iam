@@ -1,0 +1,12 @@
+# Deterministic rules the model cannot soften.
+# The policy floor (iam_tools/policy_scorer.py) uses these to compute the
+# minimum strictness for each entitlement. The model may go stricter, never
+# more lenient.
+
+# No interactive or non-interactive sign-in within this many days = stale.
+stale_days: 90
+
+# Membership in any of these groups counts as privileged access. Stale
+# standing membership in a privileged group is forced to 'revoke'.
+privileged_groups:
+  - PRIV-Finance-Admin
