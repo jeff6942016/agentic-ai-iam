@@ -1,0 +1,53 @@
+# Governance-as-code for the agent (non-human) identities in this portfolio.
+# This file is the source of truth. The posture auditor grades each identity's
+# live configuration against its entry here, and drift from it is a finding.
+#
+# Replace owner_upn with your real accountable sponsor. The auditor governs
+# itself too, so nhi-auditor appears here as well.
+
+agents:
+  jml-agent:
+    purpose: Joiner-mover-leaver provisioning (project 01)
+    owner_upn: jeff@jeffreylpfyahoo.onmicrosoft.com
+    credential: federated          # target state: no standing secret
+    max_credential_age_days: 90
+    allow_standing_directory_roles: false
+    allowed_graph_app_roles:
+      - User.ReadWrite.All
+      - GroupMember.ReadWrite.All
+      - AuditLog.Read.All
+      - Directory.Read.All
+
+  review-reader:
+    purpose: Access-review evidence gathering (project 02)
+    owner_upn: jeff@jeffreylpfyahoo.onmicrosoft.com
+    credential: federated
+    max_credential_age_days: 90
+    allow_standing_directory_roles: false
+    allowed_graph_app_roles:
+      - AccessReview.Read.All
+      - AuditLog.Read.All
+      - User.Read.All
+      - Directory.Read.All
+      - IdentityRiskyUser.Read.All
+
+  review-writer:
+    purpose: Access-review decision recording (project 02)
+    owner_upn: jeff@jeffreylpfyahoo.onmicrosoft.com
+    credential: federated
+    max_credential_age_days: 90
+    allow_standing_directory_roles: false
+    allowed_graph_app_roles:
+      - AccessReview.ReadWrite.All
+
+  nhi-auditor:
+    purpose: NHI posture auditing (this project); governs itself
+    owner_upn: jeff@jeffreylpfyahoo.onmicrosoft.com
+    credential: federated
+    max_credential_age_days: 90
+    allow_standing_directory_roles: false
+    allowed_graph_app_roles:
+      - Application.Read.All
+      - Directory.Read.All
+      - AuditLog.Read.All
+      - IdentityRiskyServicePrincipal.Read.All

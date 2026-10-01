@@ -1,0 +1,64 @@
+# Sample CI run that authenticates the nhi-auditor via workload identity
+# federation. No client secret is stored: the job mints a short-lived OIDC token
+# and exchanges it for a Microsoft Graph token.
+#
+# Repository secrets referenced here are identifiers, not credentials:
+#   AUDITOR_CLIENT_ID  - the app (client) id of nhi-auditor
+#   TENANT_ID          - the directory (tenant) id
+#
+# Place this file at .github/workflows/ in the repo to run it; it lives here in
+# the project folder as a documented sample.
+
+name: nhi-auditor
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1"   # weekly posture run, Mondays 07:00 UTC
+
+permissions:
+  id-token: write          # allows the job to mint the OIDC token
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: 03-secure-the-agent
+        run: pip install -r requirements.txt
+
+      - name: Acquire a federated Graph token (no secret)
+        id: token
+        run: |
+          # Request the OIDC token GitHub mints for this job.
+          OIDC=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" | python -c "import sys,json;print(json.load(sys.stdin)['value'])")
+          # Exchange it for a Graph access token via the client-credentials flow
+          # using client_assertion (the federated credential), no client secret.
+          TOKEN=$(curl -sS -X POST \
+            "https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token" \
+            -d "client_id=${AUDITOR_CLIENT_ID}" \
+            -d "scope=https://graph.microsoft.com/.default" \
+            -d "grant_type=client_credentials" \
+            -d "client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer" \
+            -d "client_assertion=${OIDC}" | python -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+          echo "::add-mask::$TOKEN"
+          echo "assertion=$OIDC" >> "$GITHUB_OUTPUT"
+        env:
+          TENANT_ID: ${{ secrets.TENANT_ID }}
+          AUDITOR_CLIENT_ID: ${{ secrets.AUDITOR_CLIENT_ID }}
+
+      - name: Run posture auditor
+        working-directory: 03-secure-the-agent
+        run: python -m auditor.posture_agent
+        env:
+          TENANT_ID: ${{ secrets.TENANT_ID }}
+          AUDITOR_CLIENT_ID: ${{ secrets.AUDITOR_CLIENT_ID }}
+          AUDITOR_CLIENT_ASSERTION: ${{ steps.token.outputs.assertion }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
