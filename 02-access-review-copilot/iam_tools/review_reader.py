@@ -64,15 +64,20 @@ def user_groups(user_id):
 def user_risk(user_id):
     """Identity Protection risk state.
 
-    /riskyUsers/{id} returns 404 when the user is not risky, which we treat as
-    'none' rather than an error.
+    A clean 404 means Identity Protection has evaluated the user and found no
+    risk, which we report as 'none'. Any other failure (an unexpected error, or
+    risk data being unavailable) is reported as 'unknown' rather than silently
+    treated as safe, so the policy floor never assumes a user is low-risk when
+    we actually have no evidence.
     """
     try:
         r = graph("GET", f"/identityProtection/riskyUsers/{user_id}?$select=riskLevel,riskState")
         return {"riskLevel": r.get("riskLevel", "none"), "riskState": r.get("riskState", "none")}
-    except Exception:
-        return {"riskLevel": "none", "riskState": "none"}
-
+    except Exception as e:
+        msg = str(e)
+        if "404" in msg and "UnknownError" not in msg:
+            return {"riskLevel": "none", "riskState": "none"}
+        return {"riskLevel": "unknown", "riskState": "unavailable"}
 
 def gather_evidence(user_id):
     """Convenience: all evidence for one user in one structure."""

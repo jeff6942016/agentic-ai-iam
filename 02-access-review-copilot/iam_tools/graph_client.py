@@ -48,8 +48,11 @@ def graph(method, path, identity="reader", **kwargs):
         **kwargs,
     )
     if not resp.ok:
-        # Surface Graph's own error text; a blind raise hides the real cause.
-        print(f"Graph {resp.status_code} ({identity}): {resp.text}")
+        # A 404 on riskyUsers is expected (user has no risk record); stay quiet.
+        # Surface anything else, since a blind raise hides the real cause.
+        is_expected_risk_404 = resp.status_code == 404 and "riskyUsers" in path
+        if not is_expected_risk_404:
+            print(f"Graph {resp.status_code} ({identity}): {resp.text}")
     resp.raise_for_status()
     return resp.json() if resp.text else {}
 
