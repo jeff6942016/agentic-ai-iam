@@ -1,0 +1,46 @@
+name: nhi-auditor
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write          # allows the job to mint the OIDC token
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Graph via federation (no stored secret)
+        run: |
+          # 1. GitHub mints a short-lived OIDC token for this job.
+          OIDC=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" \
+            | python3 -c "import sys,json;print(json.load(sys.stdin)['value'])")
+
+          # 2. Exchange it for a Graph token via client_assertion. No client secret.
+          TOKEN=$(curl -sS -X POST \
+            "https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token" \
+            -d "client_id=${AUDITOR_CLIENT_ID}" \
+            -d "scope=https://graph.microsoft.com/.default" \
+            -d "grant_type=client_credentials" \
+            -d "client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer" \
+            -d "client_assertion=${OIDC}" \
+            | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+          echo "::add-mask::$TOKEN"
+
+          if [ -z "$TOKEN" ]; then
+            echo "FAILED: no Graph token returned (federation did not work)"
+            exit 1
+          fi
+          echo "Federation succeeded: obtained a Graph token with no stored secret."
+
+          # 3. Prove the token works with one read-only Graph call.
+          COUNT=$(curl -sS -H "Authorization: Bearer $TOKEN" \
+            "https://graph.microsoft.com/v1.0/applications?\$top=1&\$select=displayName" \
+            | python3 -c "import sys,json;print(len(json.load(sys.stdin).get('value',[])))")
+          echo "Graph call returned $COUNT application(s). Auditor authenticated read-only via OIDC."
+        env:
+          TENANT_ID: ${{ secrets.TENANT_ID }}
+          AUDITOR_CLIENT_ID: ${{ secrets.AUDITOR_CLIENT_ID }}
