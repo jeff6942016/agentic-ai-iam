@@ -54,9 +54,13 @@ def graph(method, path, api="v1.0", **kwargs):
         **kwargs,
     )
     if not resp.ok:
-        # A 404 on riskyServicePrincipals is expected (no risk record); stay quiet.
+        # Some failures are expected and handled by callers; don't print them.
+        #  - 404 on riskyServicePrincipals: the SP has no risk record
+        #  - any error on the beta servicePrincipalSignInActivities endpoint:
+        #    unavailable in many tenants, callers already degrade to None
         is_expected_risk_404 = resp.status_code == 404 and "riskyServicePrincipals" in path
-        if not is_expected_risk_404:
+        is_signin_beta = "servicePrincipalSignInActivities" in path
+        if not (is_expected_risk_404 or is_signin_beta):
             print(f"Graph {resp.status_code} ({api}): {resp.text}")
     resp.raise_for_status()
     return resp.json() if resp.text else {}
