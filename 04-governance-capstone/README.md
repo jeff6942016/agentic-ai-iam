@@ -99,6 +99,3 @@ The 2026 guidance treats agents as first-class, accountable identities with thei
 - **The most convincing evidence was unscripted.** The posture auditor catching a real `Group.ReadWrite.All` over-grant, which project 01 had itself flagged as too broad, is the clearest proof that governance-as-code works, and it maps cleanly to NIST AI RMF MEASURE and SOC 2 CC6.1.
 - **Naming the gaps is part of the assurance.** Documenting what needs Workload Identities Premium or M365 Agent licensing, and what was configured but not fully realized, is what separates a credible security writeup from a marketing one.
 
-## Public writing
-
-A short companion post for LinkedIn, drawn from this capstone, is in `writing/linkedin-post.md`.
