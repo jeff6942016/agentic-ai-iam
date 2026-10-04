@@ -1,8 +1,7 @@
 # Red-Team Findings: secure-the-agent
 
 Deliberate tests against the agent identities themselves, treating each as a
-privileged non-human identity. Fill in results and screenshot references as you
-run each probe.
+privileged non-human identity.
 
 ## Threat model
 
@@ -10,7 +9,7 @@ The agent identities (`jml-agent`, `review-reader`, `review-writer`, `nhi-audito
 are privileged non-human identities. The realistic threats are: a standing
 credential being stolen and replayed with no user and no MFA, the auditor itself
 being used to tamper with the identities it inspects, and privilege drift where
-an identity quietly gains a scope beyond its declared manifest.
+an identity holds a scope beyond its declared manifest.
 
 ## Defense layers under test
 
@@ -28,10 +27,12 @@ an identity quietly gains a scope beyond its declared manifest.
 
 **Maps to**: verification of least privilege, OWASP Excessive Agency, NIST AI RMF MEASURE.
 
-**Attempt**: `python -m redteam.over_privilege_probe` has the read-only auditor
+**Attempt**: `python -m redteam.over_privilege_probe` had the read-only auditor
 try to add a password credential to an application it audits.
 
-**Result**: _(expected: blocked at the permission layer, 403 / Authorization_RequestDenied)_
+**Result**: Blocked at the permission layer with `403 Forbidden`,
+`Authorization_RequestDenied: Insufficient privileges to complete the operation`,
+on `POST /applications/{id}/addPassword`.
 
 **Stopped by**: Layer 3. The auditor holds only read scopes, so it cannot change
 the very identities it inspects.
@@ -40,41 +41,47 @@ the very identities it inspects.
 
 ---
 
-## Finding 2: Credential-theft blast radius (make the case for federation)
+## Finding 2: Real privilege drift (not staged)
 
-**Maps to**: OWASP NHI risks, credential management.
+**Maps to**: configuration drift, least-privilege enforcement, OWASP NHI risks.
 
-**Attempt**: `python -m redteam.credential_theft <display_name>` before and after
-workload identity federation.
+**Attempt**: Run the posture auditor against the declared manifest. This was not a
+planted test; it was the first real run.
 
-**Result**:
-- Before (standing secret present): _(record that a leaked secret grants full
-  agent access, no user, no MFA, until expiry)_
-- After (federated, secret removed): _(record that there is no stored secret to
-  steal for the automated path, only a short-lived token)_
+**Result**: `jml-agent` was flagged CRITICAL for holding `Group.ReadWrite.All`, a
+scope not in its manifest. Project 01 had deliberately chosen the narrower
+`GroupMember.ReadWrite.All` and flagged `Group.ReadWrite.All` as broader than
+needed, but the grant was still live in the tenant. The scope was removed in
+Entra and the re-run cleared the CRITICAL, leaving only the standing-secret and
+credential-age findings.
 
-**Stopped by**: Layer 3 (federation). Residual control is Conditional Access for
-workload identities, documented as design (needs Workload Identities Premium).
+**Stopped by**: Layers 1 and 2. The manifest is a live control, so the extra
+scope was detected and floored to critical rather than sitting unnoticed.
 
-**Screenshot**: `docs/screenshots/redteam-credential-theft.png`
+**Screenshot**: `docs/screenshots/redteam-manifest-drift.png`,
+`docs/screenshots/posture-run-clean.png`
 
 ---
 
-## Finding 3: Manifest drift (poisoned grant)
+## Finding 3: Credential-theft blast radius (the case for federation)
 
-**Maps to**: configuration drift, least-privilege enforcement.
+**Maps to**: OWASP NHI risks, credential management.
 
-**Attempt**: Grant one agent a scope beyond its manifest (for example add
-`Group.ReadWrite.All` to `review-reader` and admin-consent it), then run
-`python -m auditor.posture_agent`.
+**Attempt**: `python -m redteam.credential_theft <display_name>` against an
+identity with a standing secret, and against the federated auditor.
 
-**Result**: _(expected: the auditor flags CRITICAL over-privilege drift for that
-identity; remove the grant afterward)_
+**Result**:
+- `jml-agent` (standing secret, not federated): reported RISK, a leaked secret
+  grants full agent access with no user and no MFA until it expires.
+- `nhi-auditor` (standing secret present and federation configured): reported
+  PARTIAL, federation is configured but a standing secret still exists, so the
+  benefit is not fully realized until the secret is removed.
 
-**Stopped by**: Layers 1 and 2. The manifest is a live control, so the extra
-scope is detected and floored to critical.
+**Stopped by**: Layer 3 (federation) once the secret is removed. Residual control
+is Conditional Access for workload identities, documented as design (needs
+Workload Identities Premium).
 
-**Screenshot**: `docs/screenshots/redteam-manifest-drift.png`
+**Screenshot**: `docs/screenshots/redteam-credential-theft.png`
 
 ---
 
@@ -82,15 +89,16 @@ scope is detected and floored to critical.
 
 | # | Attack | Outcome | Layer that held |
 | :--- | :--- | :--- | :--- |
-| 1 | Auditor tries to write a credential | _fill in_ | Layer 3 |
-| 2 | Leaked standing secret | _fill in_ | Layer 3 (federation) |
-| 3 | Scope granted beyond manifest | _fill in_ | Layers 1 and 2 |
+| 1 | Auditor tries to write a credential | Refused, `403` at the permission layer | Layer 3 |
+| 2 | Scope held beyond the manifest (real) | Flagged CRITICAL, then remediated | Layers 1 and 2 |
+| 3 | Leaked standing secret | Full access until expiry; federation removes it (PARTIAL until secret deleted) | Layer 3 |
 
 ## What would be added in production
 
+- Delete the standing secret entirely once the dev path also moves off secrets.
 - Conditional Access for workload identities on each agent service principal
   (needs Workload Identities Premium).
-- Continuous posture runs on a schedule via the federated CI identity, with
-  alerting on any finding at or above HIGH.
+- Continuous posture runs on a schedule via the federated CI identity, alerting
+  on any finding at or above HIGH.
 - Access reviews / recertification of the service principals themselves (needs
   Workload Identities Premium).

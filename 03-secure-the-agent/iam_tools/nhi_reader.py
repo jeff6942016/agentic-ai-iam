@@ -85,7 +85,7 @@ def sp_signin_activity(app_id):
     try:
         out = graph(
             "GET",
-            f"/servicePrincipalSignInActivities?$filter=appId eq '{app_id}'",
+            f"/reports/servicePrincipalSignInActivities?$filter=appId eq '{app_id}'",
             api="beta",
         )
         vals = out.get("value", [])
